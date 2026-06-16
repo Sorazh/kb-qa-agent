@@ -1,0 +1,16 @@
+﻿__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.idea/
+.vscode/
+*.swp
+.env
+backend/faiss_index/
+backend/uploaded_files/
+backend/loaded_files.json
+.DS_Store
+Thumbs.db
