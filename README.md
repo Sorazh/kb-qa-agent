@@ -1,3 +1,11 @@
+---
+title: 知识库问答 Agent
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
 # 知识库问答 Agent (KB QA Agent)
 
 基于 **LangChain v1 + FastAPI** 的知识库问答系统。上传文档后，AI 可以基于文档内容回答你的问题。
