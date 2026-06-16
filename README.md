@@ -137,24 +137,8 @@ CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "7860"]
 1. 推送代码到 GitHub
 2. 在 [render.com](https://render.com) 创建 **Web Service**
 3. 连接 GitHub 仓库
-4. 设置：
-   - **Build Command**: `pip install -r backend/requirements.txt`
-   - **Start Command**: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
-   - **Environment Variables**: 添加 `DEEPSEEK_API_KEY` 等
+4. Environment 中把 DEEPSEEK_API_KEY 填进 Render 的 Environment Variables
 5. 部署后 Render 会生成一个公开 URL
-
-### 方式三：README 加截图
-
-如果暂时不想部署，也可以在 README 里放几张截图展示效果：
-
-1. 启动后端，打开 `http://localhost:8000`
-2. 截几张图（聊天界面、文件列表等）
-3. 放到仓库的 `screenshots/` 目录
-4. 在 README 中引用：
-
-```markdown
-![聊天界面](screenshots/chat.png)
-```
 
 ## 项目结构
 
@@ -174,8 +158,8 @@ kb-qa-agent/
 
 ## 代码说明
 
-- **`agent_core.py`**：定义了知识库的工具函数（加载/删除文档、检索）、Agent 创建、对话记忆。注释已全部中文。
-- **`app.py`**：FastAPI 路由，提供 REST API + 前端页面托管。注释已全部中文。
+- **`agent_core.py`**：定义了知识库的工具函数（加载/删除文档、检索）、Agent 创建、对话记忆。
+- **`app.py`**：FastAPI 路由，提供 REST API + 前端页面托管。
 
 ## License
 
