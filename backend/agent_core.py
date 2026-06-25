@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", message=".*unauthenticated requests to the HF 
 import os
 import json
 from typing import Any, List
-from typing_extensions import NotRequired
+from typing import NotRequired
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -315,3 +315,5 @@ if __name__ == "__main__":
             if isinstance(msg, AIMessage):
                 print(f"Agent: {msg.content}")
                 break
+
+
