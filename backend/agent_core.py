@@ -139,6 +139,8 @@ def do_load_document(filepath: str) -> str:
         _ensure_kb_loaded()
 
         docs = _load_file_to_documents(filepath)
+        #经验证：chunk_size=300, overlap=30 适合中文短句检索
+        #未来优化方向：根据文档类型（技术文档/小说）动态调整分块策略
         splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=30)
         chunks = splitter.split_documents(docs)
 
