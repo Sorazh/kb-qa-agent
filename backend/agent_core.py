@@ -5,6 +5,9 @@
 """
 
 import warnings
+
+from database import clear_all_records
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*unauthenticated requests to the HF Hub.*")
 import os
@@ -26,9 +29,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
+import asyncio
+from database import get_all_files, add_file_record, delete_file_record,clear_all_records
+
 # ===== 配置 =====
 FAISS_INDEX_DIR = "./faiss_index"
-LOADED_FILES_JSON = "./loaded_files.json"
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 
 _knowledge_base: FAISS | None = None
@@ -82,23 +87,29 @@ def _save_kb():
     _knowledge_base.save_local(FAISS_INDEX_DIR)
     print(f"[KB] 知识库已持久化到：{FAISS_INDEX_DIR}")
 
-
-def _record_loaded_file(filepath: str):
-    files = set()
-    if os.path.exists(LOADED_FILES_JSON):
-        with open(LOADED_FILES_JSON, "r", encoding="utf-8") as f:
-            files = set(json.load(f))
-    files.add(os.path.abspath(filepath))
-    with open(LOADED_FILES_JSON, "w", encoding="utf-8") as f:
-        json.dump(sorted(files), f, ensure_ascii=False, indent=2)
-
-
 def _list_loaded_files() -> list[str]:
-    if os.path.exists(LOADED_FILES_JSON):
-        with open(LOADED_FILES_JSON, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    """从数据库获取所有已加载的文件路径"""
+    try:
+        # asyncio.run() 用来在同步函数里跑异步代码
+        # 这里调用了 database.py 里的 get_all_files()
+        return asyncio.run(get_all_files())
+    except Exception as e:
+        print(f"[DB] 读取文件列表失败：{e}")
+        return []  #如果读不到，返回空列表，不影响程序运行
 
+def _record_loaded_file(filepath: str,chunk_count: int = 0):
+    """记录一个文件到数据库（同步版本）"""
+    try:
+        asyncio.run(add_file_record(filepath, chunk_count))
+    except Exception as e:
+        print(f"[DB] 记录文件失败：{e}")
+
+def _delete_file_record(filepath: str):
+    """同步包装器：从数据库删除文件"""
+    try:
+        asyncio.run(delete_file_record(filepath))
+    except Exception as e:
+        print(f"删除数据库记录失败: {e}")
 
 def _load_file_to_documents(filepath: str) -> List[Document]:
     """根据扩展名加载文件，返回 Document 列表。"""
@@ -128,7 +139,6 @@ def _load_file_to_documents(filepath: str) -> List[Document]:
         raise ValueError(f"不支持的文件格式: {ext}，仅支持 .txt .pdf .docx")
 
     return documents
-
 
 def do_load_document(filepath: str) -> str:
     """加载文档到知识库：读取 → 切分 → 向量化 → 持久化。"""
@@ -183,10 +193,10 @@ def do_remove_document(filepath: str) -> str:
                     f"当前已导入的文件：\n" + "\n".join(current_files))
 
         new_files = [f for f in current_files if f != matched]
-        rebuild_knowledge_base_from_files(new_files)
 
-        with open(LOADED_FILES_JSON, "w", encoding="utf-8") as f:
-            json.dump(sorted(new_files), f, ensure_ascii=False, indent=2)
+        rebuild_knowledge_base_from_files(new_files)
+        # 从数据库里删除这条记录（不删的话文件列表里还会显示）
+        _delete_file_record(matched)
 
         return (f"✅ 已成功删除文档：{matched}\n"
                 f"知识库已重建并持久化。当前共 {len(new_files)} 个文件。")
@@ -228,8 +238,11 @@ def rebuild_knowledge_base_from_files(filepaths: List[str]):
         import shutil
         if os.path.isdir(FAISS_INDEX_DIR):
             shutil.rmtree(FAISS_INDEX_DIR)
-        if os.path.exists(LOADED_FILES_JSON):
-            os.remove(LOADED_FILES_JSON)
+        try:
+            asyncio.run(clear_all_records())
+            print(f"[KB] 所有文件已删除，数据库记录已同步清空")
+        except Exception as e:
+            print(f"[KB] 清空数据库记录失败：{e}")
         return
 
     all_chunks = []

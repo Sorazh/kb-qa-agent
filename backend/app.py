@@ -13,24 +13,37 @@ API 接口：
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
+import asyncio
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
 from agent_core import (
     run_query,
-    _ensure_kb_loaded,
-    _list_loaded_files,
     do_load_document,
     do_remove_document,
 )
 
-app = FastAPI(title="知识库问答 Agent")
+from database import init_db, get_all_files
+
+
+#启动时只初始化表结构，不管增删改
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    #启动时执行
+    await init_db()
+    print(f"数据库已连接")
+    yield
+    #关闭时执行（如果有需要关闭的连接池放这里）
+    print(f"服务正常关闭")
+
+
+app = FastAPI(title="知识库问答 Agent",lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,34 +62,30 @@ class FileReq(BaseModel):
     filepath: str
 
 
+#查看文件列表
 @app.get("/api/status")
-def get_status():
-    """获取已加载的文件列表。"""
-    _ensure_kb_loaded()
-    return {"loaded_files": _list_loaded_files()}
+async def get_status():
+    files = await get_all_files()
+    return {"loaded_files": files}
 
 
 @app.post("/api/chat")
-def chat(req: ChatReq):
+async def chat(req: ChatReq):
     """发送消息给 Agent 并获取回答。"""
-    try:
-        answer = run_query(req.message, thread_id=req.session_id)
-        return {"answer": answer}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    answer = await asyncio.to_thread(run_query, req.message,req.session_id)
+    return {"answer": answer}
 
 
 @app.post("/api/load")
-def load_file(req: FileReq):
+async def load_file(req: FileReq):
     """按文件路径加载文档到知识库。"""
-    result = do_load_document(req.filepath)
+    result = await asyncio.to_thread(do_load_document, req.filepath)
     return {"result": result}
 
 
 @app.post("/api/remove")
-def remove_file(req: FileReq):
-    """从知识库中删除指定文档。"""
-    result = do_remove_document(req.filepath)
+async def remove_file(req: FileReq):
+    result = await asyncio.to_thread(do_remove_document, req.filepath)
     return {"result": result}
 
 
@@ -102,7 +111,7 @@ async def upload_file(file: UploadFile = File(...)):
         with open(filepath, "wb") as f:
             f.write(content)
 
-        result = do_load_document(str(filepath))
+        result = await asyncio.to_thread(do_load_document,str(filepath))
         return {"result": result, "filepath": str(filepath)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
